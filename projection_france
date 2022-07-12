@@ -1,0 +1,59 @@
+# Import the geopandas and geoplot libraries
+#!pip install geopandas
+#!pip install geoplot
+#!apt-get -V -y -qq install python-cartopy python3-cartopy
+#!pip uninstall shapely -y
+#!pip install shapely --no-binary shapely
+import geopandas as gpd
+import geoplot as gplt
+import geoplot.crs as gcrs
+import json  
+import requests
+import datetime
+import numpy as np
+import pandas as pd
+#import geoviews as gv
+import matplotlib.pyplot as plt
+# Set up the color sheme:
+import mapclassify as mc
+import folium
+
+data_map_france = gpd.read_file("https://raw.githubusercontent.com/holtzy/The-Python-Graph-Gallery/master/static/data/france.geojson")
+data_map_france = data_map_france.sort_values(by=['nom'])
+#print(data_map_france)
+
+#gplt.polyplot(data_map_france, projection=gcrs.AlbersEqualArea(), edgecolor='darkgrey', facecolor='lightgrey', linewidth=.3, figsize=(12, 8))
+
+with open("/content/sample_data/qualite-de-lair-france.geojson_france_metropole.json","r",encoding='utf-8') as json_data:
+  data = json.load(json_data) 
+
+data_normalize = pd.json_normalize(data,record_path=['features'])
+
+data_normalize = data_normalize.sort_values(by=['properties.city'])
+
+data_normalize = data_normalize[["properties.measurements_value","properties.measurements_lastupdated",
+                              "properties.measurements_parameter","properties.city"]]
+
+data_normalize["properties.measurements_lastupdated"] = pd.to_datetime(data_normalize["properties.measurements_lastupdated"]).apply(lambda t: t.replace(tzinfo=None)).dt.strftime('%d/%m/%Y %H:%M:%S')
+
+data_normalize = data_normalize.pivot_table(index='properties.city', columns='properties.measurements_parameter', 
+                                            values='properties.measurements_value',aggfunc='mean').reset_index()
+
+data_normalize["CO"] = data_normalize["CO"].fillna(0)
+data_normalize["NO2"] = data_normalize["NO2"].fillna(0)
+data_normalize["O3"] = data_normalize["O3"].fillna(0)
+data_normalize["PM10"] = data_normalize["PM10"].fillna(0)
+data_normalize["PM2.5"] = data_normalize["PM2.5"].fillna(0)
+data_normalize["SO2"] = data_normalize["SO2"].fillna(0)
+
+#print(data_normalize)
+
+fullData = data_normalize.merge(data_map_france, left_on=['properties.city'], right_on=['nom'])
+geo_df = gpd.GeoDataFrame(fullData)
+print(geo_df)
+
+fig, ax = plt.subplots(figsize=(24,18))
+data_map_france.plot(ax=ax, alpha=0.4, color='grey')
+geo_df.plot(column='O3', ax=ax, legend=True)
+
+
